@@ -1,0 +1,33 @@
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Python caches / build artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+*.egg
+build/
+dist/
+
+# Scan output / reports (may contain target data)
+*-report.json
+*.report.json
+reports/
+
+# Secrets / local config
+.env
+.env.*
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+credentials*
+secrets*
+
+# Editor / OS cruft
+.DS_Store
+.idea/
+.vscode/
