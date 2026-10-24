@@ -1,158 +1,80 @@
-# blightscan — modular OSINT / reconnaissance tool
+# blightscan
 
-A clean, modular reconnaissance toolkit for **authorized** security testing and
-OSINT. It takes a **domain**, **IP address**, **CIDR range**, or **company
-name** and gathers deep public information, producing both readable console
-output and a structured JSON report.
+Modular OSINT / reconnaissance CLI and DarksecLabz synthwave TUI for targets you are authorized to test.
 
 > ## ⚠️ AUTHORIZED USE ONLY — READ THIS FIRST
-> Use this tool **only** against systems you own or have **explicit written
-> permission** to test. Passive modules (DNS, crt.sh, WHOIS/RDAP, HTTP
-> fingerprinting, email scraping) query public records and the target's own
-> public web pages. The **port scanner (`--ports`) is active**: it opens real
-> TCP connections to the target and must only be pointed at hosts you are
-> authorized to scan. Unauthorized scanning/recon is illegal in many
-> jurisdictions. **You are solely responsible for how you use this.**
-
-## Features / modules
-
-| Module | File | What it does |
-| --- | --- | --- |
-| DNS enumeration | `blightscan/dns.py` | Resolves A, AAAA, MX, NS, TXT, CNAME, SOA via dnspython. |
-| Subdomain enum | `blightscan/subdomains.py` | Certificate Transparency (crt.sh) **plus** concurrent wordlist brute-force resolution. |
-| WHOIS / RDAP | `blightscan/whois_lookup.py` | RDAP (rdap.org, structured) first, then python-whois, then the system `whois` CLI. Works for domains and IPs. |
-| Port scan | `blightscan/ports.py` | **Active** concurrent TCP connect scan of ~100 common ports with banner grabbing. Gated behind `--ports`. |
-| Fingerprint | `blightscan/fingerprint.py` | Fetches HTTP(S) headers + HTML: server, framework/CMS hints, security headers, `<meta generator>`. |
-| Emails/contacts | `blightscan/emails.py` | Scrapes homepage + common contact pages for emails; generates likely address patterns from a name. |
-| Company mode | `blightscan/company.py` | Discovers likely primary domain(s) from a company name (DuckDuckGo HTML + TLD guessing), then pivots into the domain workflow. |
-| IP range mode | `blightscan/iprange.py` | Expands a CIDR, reverse-DNS each host, optional port scan. |
-| CLI / orchestration | `blightscan/cli.py` | Argument parsing, dispatch, console + JSON reporting. |
-| Shared helpers | `blightscan/utils.py` | Target classification, validation, colored logging. |
+>
+> Use this tool **only** against systems you own or have **explicit written permission** to test. Passive modules (DNS, crt.sh, WHOIS/RDAP, HTTP fingerprinting, email scraping) query public records and the target's own public pages.
+>
+> **Port scan (`--ports`) is active.** It opens real TCP connections to the target. On the CLI it runs only when you pass `--ports`, and the tool warns that the target must be authorized. In the TUI it is off by default and stays off unless you retype the target exactly and confirm written authorization (the prompt defaults to **no**).
+>
+> **Company mode is active.** It queries third-party discovery services, then pivots into the domain workflow. The TUI aborts company mode unless you retype the target exactly and confirm written authorization (default **no**).
+>
+> Unauthorized scanning or reconnaissance is illegal in many jurisdictions. **You are solely responsible for how you use this.**
 
 ## Install
 
-Requires Python 3.9+. Use a virtual environment:
+Python 3.9+, from this repository:
 
 ```bash
-cd blightscan
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-(Optional) install as a command so `blightscan` is on your PATH:
-
-```bash
 pip install -e .
 ```
 
-The system `whois` CLI is an optional fallback; on Debian/Ubuntu: `sudo apt install whois`.
+Optional WHOIS fallback on Debian/Ubuntu: `sudo apt install whois`.
 
 ## Usage
 
-Run via the module, the launcher script, or (if installed) the `blightscan` command:
+Bare `blightscan` opens the interactive DarksecLabz TUI. Pass a target to run the CLI (`python -m blightscan` and `./blightscan.py` do the same).
 
 ```bash
-python -m blightscan <target> [options]
-# or
-./blightscan.py <target> [options]
-# or (after pip install -e .)
-blightscan <target> [options]
+blightscan                              # interactive TUI
+blightscan example.com -o report.json   # passive recon
+blightscan example.com --ports          # ACTIVE TCP scan — authorized targets only
+python -m blightscan example.com --json-only
 ```
 
-### Options
-
 ```
-positional:
-  target                 domain, IP, CIDR range, or company name
-
-options:
-  -t, --type {auto,domain,ip,cidr,company}   force target type (default auto)
-  -o, --output FILE      write JSON report to FILE
-  --json-only            suppress console output; print JSON to stdout
-  -v, --verbose          verbose debug logging (stderr)
-  --ports                ACTIVE TCP port scan — authorized targets only
-  --no-bruteforce        skip subdomain wordlist brute force (crt.sh only)
-  --person "First Last"  generate email pattern guesses for this person
-  --workers N            thread pool size (default 100)
-  --version              show version
+target                  domain, IP, CIDR, or company name (omit for the TUI)
+-t, --type              auto | domain | ip | cidr | company
+-o, --output FILE       write a JSON report
+--json-only             JSON on stdout, no console summary
+--modules LIST          passive subset, e.g. dns,whois (default: all)
+--no-bruteforce         crt.sh only; skip subdomain wordlist DNS
+--person "First Last"   email pattern guesses
+--ports                 ACTIVE TCP connect scan — authorized targets only
+--workers N             concurrency (default 100)
+-v, --verbose
 ```
 
-### Examples
+## Features
+
+- **DNS** — A, AAAA, MX, NS, TXT, CNAME, SOA
+- **Subdomains** — Certificate Transparency (crt.sh) plus concurrent wordlist resolution
+- **WHOIS / RDAP** — rdap.org, then python-whois, then the system `whois` binary (domains and IPs)
+- **HTTP fingerprint** — server, framework/CMS hints, security headers, `<meta generator>`
+- **Emails** — addresses on the homepage and common contact pages; optional name patterns
+- **Company** — best-effort primary domain, then the domain workflow (active; TUI requires exact-target confirmation)
+- **CIDR** — expand the range and reverse-DNS each host; port scan only with `--ports` on an authorized range
+- **Ports** — concurrent TCP connect scan of ~100 common ports, with banners (**active**, `--ports` only)
+- **Reports** — colored console summary plus JSON; a failed module is stored under `error` and the run continues
+
+## Demo
+
+No GIF or screenshot is in this repo. Run the TUI:
 
 ```bash
-# Passive recon of a domain, save JSON
-python -m blightscan example.com -o example-report.json
-
-# Domain recon incl. active port scan (authorized target only)
-python -m blightscan example.com --ports -o report.json
-
-# crt.sh only, no brute force, verbose
-python -m blightscan example.com --no-bruteforce -v
-
-# Company name -> discover primary domain -> full workflow
-python -m blightscan "Acme Corporation" -o acme.json
-
-# IP range: reverse DNS across a CIDR (add --ports to scan)
-python -m blightscan 192.0.2.0/24
-python -m blightscan 192.0.2.0/24 --ports
-
-# Single IP WHOIS/RDAP + reverse DNS + ports
-python -m blightscan 198.51.100.10 --ports
-
-# Email harvesting with pattern guessing
-python -m blightscan example.com --person "Jane Doe"
-
-# JSON piped to another tool
-python -m blightscan example.com --json-only | jq '.subdomains.all'
+blightscan
 ```
 
-## Output
+It is a DarksecLabz synthwave terminal: hot pink prompts, cyan status, and purple borders on a dark background. A rounded panel shows **DARKSECLABZ** and the blightscan version, with the authorized-use notice directly under the banner. Passive modules are a checkbox list (toggle by number, `a` all, `n` none, Enter to continue). Before a port scan or company-mode discovery, the UI draws a warning bar, asks you to type the target exactly, and requires yes to "I am authorized to actively test this target." The default is no; a mismatch or a no skips that active step.
 
-- **Console:** sectioned, colored summary (auto-disabled when not a TTY).
-- **JSON:** complete structured report via `-o FILE`, or to stdout with
-  `--json-only`. Every module is resilient — a failure in one module is caught,
-  recorded in the report under an `error` key, and the run continues.
+**Alt text** for a future GIF: "DarksecLabz synthwave TUI for blightscan: purple panel, cyan passive-module checks, and an active-scan confirmation that requires retyping the target before any TCP connections."
 
-## Notes & limitations
+## Notes
 
-- `root_domain()` uses a small heuristic public-suffix list; exotic multi-part
-  TLDs may be split imperfectly.
-- Company discovery is best-effort (no paid APIs); confirm the primary domain
-  before relying on the pivot.
-- crt.sh and DuckDuckGo may rate-limit; rerun or lower `--workers` if so.
-- The wordlist is intentionally small for speed; extend `DEFAULT_WORDLIST` in
-  `blightscan/subdomains.py` for deeper brute force.
-
-## Interactive mode (TUI)
-
-Running `blightscan` (or `python -m blightscan`) with **no target** launches an
-interactive, prompt-driven terminal UI:
-
-```
-python -m blightscan
-```
-
-It walks you through:
-
-1. Entering a target (domain / IP / CIDR / company) and confirming the
-   detected type.
-2. Toggling which **passive** modules to run (all enabled by default).
-3. Optional subdomain brute force and email person-name hint.
-4. **Active recon gating** — port scans (`--ports`) and company-mode
-   discovery hit the target/third parties directly, so they are disabled by
-   default and require an explicit confirmation (you must retype the exact
-   target and affirm you are authorized). Only run these against systems you
-   own or are permitted to test.
-5. Optionally saving a JSON report.
-
-All existing command-line flags still work exactly as before, e.g.:
-
-```
-python -m blightscan example.com -o report.json          # passive, non-interactive
-python -m blightscan example.com --modules dns,whois     # pick passive modules
-python -m blightscan example.com --ports                 # active scan (authorized only)
-```
-
-Installing with `pip install -e .` provides a `blightscan` console command (defined
-in `pyproject.toml`), so a one-word launch opens the TUI.
+- `root_domain()` uses a small public-suffix heuristic; unusual multi-part TLDs can split imperfectly.
+- Company discovery uses no paid APIs. Confirm the primary domain before you trust the pivot.
+- crt.sh and search endpoints may rate-limit; rerun or lower `--workers`.
+- The subdomain wordlist is intentionally small. Extend `DEFAULT_WORDLIST` in `blightscan/subdomains.py` for a deeper pass.
